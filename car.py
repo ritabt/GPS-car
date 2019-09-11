@@ -1,8 +1,12 @@
-# last edited 20190910-2322 by Ha Tran
+# last edited 20190911-00h18 by Ha Tran
 
+# setup imports
 import time, board, pulseio, busio, adafruit_gps, adafruit_lsm9ds1
-import math as m
 from adafruit_motor import servo
+
+# other imports
+import math as m
+
 
 # TODO: make class wrapper for car nav & ctrl suite
 def main():
@@ -166,6 +170,18 @@ def moveToCoord(lat2, lon2):
 	lon1 = gps.longitude
 	dist = coordDist(lat1, lon1, lat2, lon2)
 	relativeBearing = heading() + bearing() # angle in degrees CW from heading to destination
+		
+	# TODO: turns + move --> smoother transitions
+	def turn(theta):
+		# v1 turn in-place
+		servo1.angle = theta / 2
+		servo2.angle = theta / 2
+
+	def move(dist):
+		wheelDiam = 0.05 # meters
+		theta = dist / (m.pi * wheelDiam)
+		servo1.angle = servo2.angle = theta
+
 	turn(relativeBearing)
 	move(dist)
 
@@ -175,14 +191,14 @@ def heading():
 	return m.degrees(m.atan(mag_x / mag_y))
 
 # angle in degrees CW from North to destination
-	def bearing(lat1, lon1, lat2, lon2):
-		# REF: https://www.movable-type.co.uk/scripts/latlong.html
-		phi1, phi2, lambda1, lambda2 = map(m.radians, [lat1, lat2, lon1, lon2])
-		y = m.sin(lambda2 - lambda1) * m.cos(phi2)
-		x = m.cos(phi1) * m.sin(phi2) \
-			- m.sin(phi1) * m.cos(phi2) \
-			* m.cos(phi2 - phi1)
-		return m.degrees(m.atan2(y, x))
+def bearing(lat1, lon1, lat2, lon2):
+	# REF: https://www.movable-type.co.uk/scripts/latlong.html
+	phi1, phi2, lambda1, lambda2 = map(m.radians, [lat1, lat2, lon1, lon2])
+	y = m.sin(lambda2 - lambda1) * m.cos(phi2)
+	x = m.cos(phi1) * m.sin(phi2) \
+		- m.sin(phi1) * m.cos(phi2) \
+		* m.cos(phi2 - phi1)
+	return m.degrees(m.atan2(y, x))
 
 # orthodromic distance between two lon/lat coordinates
 def coordDist(lat1, lon1, lat2, lon2):
