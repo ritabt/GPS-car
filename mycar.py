@@ -1,4 +1,3 @@
-# last edited 20190911-00h18 by Ha Tran
 
 # setup imports
 import time, board, pulseio, busio, adafruit_gps, adafruit_lsm9ds1
@@ -9,9 +8,19 @@ from adafruit_hcsr04 import HCSR04
 import math as m
 
 # ==========================================================================
-# -------------------------------- SETUP -----------------------------------
+# -------------------------------- INIT ------------------------------------
 # ==========================================================================
-# -------- set up LSM9DS1 accelerometer, magnetometer, gyroscope -----------
+
+# ------------ set up hcsr04 ultrasonic sensor --------------
+sonar = HCSR04(trig, echo)
+try:
+	while True:
+	print(sonar.dist_cm())
+	sleep(2)
+except KeyboardInterrupt:
+	pass
+sonar.deinit()
+
 # I2C connection:
 i2c = busio.I2C(board.SCL, board.SDA)
 sensor = adafruit_lsm9ds1.LSM9DS1_I2C(i2c)
@@ -33,8 +42,8 @@ pwm1 = pulseio.PWMOut(board.D42, duty_cycle=0, frequency=50)
 pwm2 = pulseio.PWMOut(board.D41, duty_cycle=0, frequency=50)
 
 # pulse widths exercise the full range of the 169 servo, other servos are different
-servo1 = servo.Servo(pwm1, min_pulse=500, max_pulse=2500)
-servo2 = servo.Servo(pwm2, min_pulse=500, max_pulse=2500)
+servo1 = servo.ContinuousServo(pwm1, min_pulse=500, max_pulse=2500)
+servo2 = servo.ContinuousServo(pwm2, min_pulse=500, max_pulse=2500)
 
 # -------- set up GPS -----------
 # Define RX and TX pins for the board's serial port connected to the GPS.
@@ -78,21 +87,13 @@ gps.send_command(b'PMTK220,1000')
 # data during parsing.  This would be twice a second (2hz, 500ms delay):
 #gps.send_command(b'PMTK220,500')
 
-# ------------------- set up ultrasonic sensor --------------------
-# sonar = HCSR04(trig, echo)
-# try:
-#     while True:
-#         print(sonar.dist_cm())
-#         sleep(2)
-# except KeyboardInterrupt:
-#     pass
-# sonar.deinit()
 # ===================================================================
-# ----------------------- END SETUP ---------------------------------
+# ----------------------- END INIT ----------------------------------
 # ===================================================================
 
 # TODO: make class wrapper for car nav & ctrl suite
 def main():
+    print("moving to " + str(37.429245) + ", " + str(-122.173400))
 	moveToCoord(37.429245, -122.173400)
 	#last_print = time.monotonic()
 	#while True:
@@ -185,13 +186,13 @@ def main():
 # move to a given destination Longitude and Latitude
 def moveToCoord(lat2, lon2):
 	startTime = time.monotonic()
+	gps.update()
 	while(not gps.has_fix):
 		# Try again if we don't have a fix yet.
-		timeElapsed = time.monotonic() - startTime
-		print('Waiting for fix...' + str(timeElapsed))
+		elapsedTime = time.monotonic() - startTime
+		print('Waiting for fix...' + str(elapsedTime))
 		time.sleep(1.0)
 
-	gps.update()
 	lat1 = gps.latitude
 	lon1 = gps.longitude
 	print("Currently at " + str(lat1) + ", " + str(lon1))
@@ -211,20 +212,40 @@ def moveToCoord(lat2, lon2):
 
 	stop()
 
-def turn(veloc, time=0.0):
-	# v1 turn in-place
-	servo1.throttle = veloc/2
- 	servo2.throttle = -veloc/2
- 	time.sleep(time)
-
-def move(veloc, time=0.0):
-	servo1.throttle = veloc
-	servo2.throttle = veloc
-	time.sleep(time)
+def setV(v):
+    if v < 0:
+        return v if v >= -1.0 else -1.0
+    return v if v <= 1.0 else 1.0
 
 def stop():
 	servo1.throttle = 0.0
 	servo2.throttle = 0.0
+
+def turn(dv, timer=0.1, pivot=False):
+        vv1 = setV(v1 + dv)
+        vv2 = setV(v2 + dv)
+        servo1.throttle = vv1
+        servo2.throttle = vv2
+ 	# time.sleep(timer)
+
+def move(v, timer=0.1):
+	servo1.throttle = setV(v)
+	servo2.throttle = setV(-v)
+	# time.sleep(timer)
+
+# move with drive correction
+def driveStraight(veloc, timer=0.1):
+	correctionConst = 1.0 # how aggressive the correction is
+	accel_x, accel_y, accel_z = sensor.acceleration
+	startTime = time.monotonic()
+	elapsedTime = time.monotonic() - startTime
+	while elapsedTime <= time:
+		elapsedTime = time.monotonic() - startTime
+		servo1.throttle = veloc
+		servo2.throttle = veloc
+		if accel_x:
+			turn(-1 * correctionConst * accel_x)
+
 
 # angle in degrees CW from North to direction car is pointing
 def heading():
@@ -263,6 +284,10 @@ def coordDist(lat1, lon1, lat2, lon2):
 		# 		at the expense of computational cost
 		return 2 * r
 	return 2 * r * m.asin(m.sqrt(h))
+
+def deinit():
+	sonar.deinit()
 # -----------------------------------------------------------------
 
 main()
+deinit()
