@@ -12,18 +12,18 @@ import math as m
 # ==========================================================================
 
 # ------------ set up hcsr04 ultrasonic sensor --------------
-# sonar = HCSR04(trig, echo)
-# try:
-#     while True:
-#     print(sonar.dist_cm())
-#     time.sleep(2)
-# except KeyboardInterrupt:
-#     pass
-# sonar.deinit()
+sonar = HCSR04(trig, echo)
+try:
+    while True:
+    print(sonar.dist_cm())
+    sleep(2)
+except KeyboardInterrupt:
+    pass
+sonar.deinit()
 
 # I2C connection:
-# i2c = busio.I2C(board.SCL, board.SDA)
-# sensor = adafruit_lsm9ds1.LSM9DS1_I2C(i2c)
+i2c = busio.I2C(board.SCL, board.SDA)
+sensor = adafruit_lsm9ds1.LSM9DS1_I2C(i2c)
 
 #SPI connection:
 # from digitalio import DigitalInOut, Direction
@@ -186,28 +186,29 @@ def main():
 # move to a given destination Longitude and Latitude
 def moveToCoord(lat2, lon2):
     startTime = time.monotonic()
+    gps.update()
+    while(not gps.has_fix):
+        # Try again if we don't have a fix yet.
+        elapsedTime = time.monotonic() - startTime
+        print('Waiting for fix...' + str(elapsedTime))
+        time.sleep(1.0)
 
-    lat1 = lon1 = None
+    lat1 = gps.latitude
+    lon1 = gps.longitude
+    print("Currently at " + str(lat1) + ", " + str(lon1))
+    dist = coordDist(lat1, lon1, lat2, lon2)
+
     while(lat1 != lat2 or lon1 != lon2):
         gps.update()
-
-        if (not gps.has_fix):
-            # Try again if we don't have a fix yet.
-            elapsedTime = time.monotonic() - startTime
-            print('Waiting for fix...' + str(elapsedTime))
-            time.sleep(1.0)
-            continue
-
-        print("Currently at " + str(lat1) + ", " + str(lon1))
         lat1 = gps.latitude
         lon1 = gps.longitude
         
         # TODO: turns + move --> smoother transitions
-        # relativeBearing = bearing() - heading() # angle in degrees CW from heading to destination
-        # turn(relativeBearing / 180) # want relativeBearing to oscillate around 0
-        # print(bearing())
-        # dist = coordDist(lat1, lon1, lat2, lon2)
-        move(1.0) # if dist > 1.0 else move(1.0)
+        relativeBearing = bearing() - heading() # angle in degrees CW from heading to destination
+        turn(relativeBearing / 180) # want relativeBearing to oscillate around 0
+        
+        dist = coordDist(lat1, lon1, lat2, lon2)
+        move(dist) if dist > 1.0 else move(1.0)
 
     stop()
 
@@ -248,9 +249,7 @@ def driveStraight(veloc, timer=0.1):
 
 # angle in degrees CW from North to direction car is pointing
 def heading():
-    # mag_x, mag_y, mag_z = sensor.magnetic
-    mag_x = 1.0
-    mag_y = 1.0
+    mag_x, mag_y, mag_z = sensor.magnetic
     return m.degrees(m.atan(mag_x / mag_y))
 
 # angle in degrees CW from North to destination
