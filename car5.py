@@ -111,49 +111,59 @@ def moveToCoord(lat2, lon2):
     lat1 = lon1 = None
 
     last_print = time.monotonic()
+    last_signal = time.monotonic()
     dlat = dlon = 1.0
     while True:
         gps.update()
         current = time.monotonic()
         if current - last_print >= refreshRate:
             last_print = current
-            if not gps.has_fix:
-                # Try again if we don't have a fix yet.
-                print('Waiting for fix...' + str(current - startTime))
-                continue
-            # We have a fix! (gps.has_fix is true)
-            # Print out details about the fix like location, date, etc.
-            print('=' * 40)  # Print a separator line.
-            print('Fix timestamp: {}/{}/{} {:02}:{:02}:{:02}'.format(
-                gps.timestamp_utc.tm_mon,   # Grab parts of the time from the
-                gps.timestamp_utc.tm_mday,  # struct_time object that holds
-                gps.timestamp_utc.tm_year,  # the fix time.  Note you might
-                gps.timestamp_utc.tm_hour,  # not get all data like year, day,
-                gps.timestamp_utc.tm_min,   # month!
-                gps.timestamp_utc.tm_sec))
-            print('Latitude: {0:.10f} degrees'.format(gps.latitude))
-            print('Longitude: {0:.10f} degrees'.format(gps.longitude))
-            # error: ValueError: unknown format code 'f' for object of type 'str'
-            # when lat and lon are unintialized, value = None
-            if gps.satellites is not None:
-                print('# satellites: {}'.format(gps.satellites))
 
-            lat1 = gps.latitude
-            lon1 = gps.longitude
-            dlat = (lat1 - lat2)
-            dlon = (lon1 - lon2)
-            print((dlat, dlon)) # if dist > 1.0 else move(1.0)
-            # move(1.0)
-            # if (abs(dlat) > 0.0001 or abs(dlon) > 0.0001):
-            #     move(1.0)
-            # else:
-            #     stop()
-            # TODO: turns + move --> smoother transitions
-            # relativeBearing = bearing() - heading() # angle in degrees CW from heading to destination
-            # turn(relativeBearing / 180) # want relativeBearing to oscillate around 0
-            # print(bearing())
-            # dist = coordDist(lat1, lon1, lat2, lon2)
-            # time.sleep(1.0)
+            # if not gps.has_fix:
+                # # Try again if we don't have a fix yet.
+                # print('Waiting for fix...' + str(current - startTime))
+                # continue
+
+
+            if gps.has_fix:
+                last_signal = time.monotonic()
+                # Print out details about the fix like location, date, etc.
+                print('=' * 40)  # Print a separator line.
+                print('Fix timestamp: {}/{}/{} {:02}:{:02}:{:02}'.format(
+                    gps.timestamp_utc.tm_mon,   # Grab parts of the time from the
+                    gps.timestamp_utc.tm_mday,  # struct_time object that holds
+                    gps.timestamp_utc.tm_year,  # the fix time.  Note you might
+                    gps.timestamp_utc.tm_hour,  # not get all data like year, day,
+                    gps.timestamp_utc.tm_min,   # month!
+                    gps.timestamp_utc.tm_sec))
+                print('Latitude: {0:.10f} degrees'.format(gps.latitude))
+                print('Longitude: {0:.10f} degrees'.format(gps.longitude))
+                # error: ValueError: unknown format code 'f' for object of type 'str'
+                # when lat and lon are unintialized, value = None
+                if gps.satellites is not None:
+                    print('# satellites: {}'.format(gps.satellites))
+                lat1 = gps.latitude
+                lon1 = gps.longitude
+                dlat = (lat1 - lat2)
+                dlon = (lon1 - lon2)
+                print((dlat, dlon)) # if dist > 1.0 else move(1.0)
+
+                if (abs(dlat) > 0.0001 or abs(dlon) > 0.0001):
+                    move(1.0)
+                else:
+                    stop()
+
+                # TODO: turns + move --> smoother transitions
+                relativeBearing = bearing(lat1, lon1, lat2, lon2) - heading() # angle in degrees CW from heading to destination
+                turn(relativeBearing() / 180) # want relativeBearing to oscillate around 0
+                print(bearing())
+                dist = coordDist(lat1, lon1, lat2, lon2)
+
+            else:
+                move(1.0)
+                if time.monotonic() - last_signal > 5.0:
+                    # if lost signal, stop after 5 sec timer
+                    stop()
 
     stop()
 
@@ -179,4 +189,21 @@ def move(v, timer=0.1):
     servo2.throttle = setV(-v)
     # time.sleep(timer)
     return (v, -v)
+
+# angle in degrees CW from North to direction car is pointing
+def heading():
+    mag_x, mag_y, mag_z = sensor.magnetic
+    # mag_x = 1.0
+    # mag_y = 1.0
+    return m.degrees(m.atan(mag_x / mag_y))
+
+# angle in degrees CW from North to destination
+def bearing(lat1, lon1, lat2, lon2):
+    # REF: https://www.movable-type.co.uk/scripts/latlong.html
+    phi1, phi2, lambda1, lambda2 = map(m.radians, [lat1, lat2, lon1, lon2])
+    y = m.sin(lambda2 - lambda1) * m.cos(phi2)
+    x = m.cos(phi1) * m.sin(phi2) \
+        - m.sin(phi1) * m.cos(phi2) \
+        * m.cos(phi2 - phi1)
+    return m.degrees(m.atan2(y, x))
 main()
