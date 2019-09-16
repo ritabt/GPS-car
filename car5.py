@@ -1,14 +1,20 @@
-# Simple GPS module demonstration.
-# Will wait for a fix and print a message every second with the current location
-# and other details.
-# import time
-# import board
-# import busio
 
-# import adafruit_gps
-import time, board, pulseio, busio, adafruit_gps, adafruit_lsm9ds1
+import time, board, pulseio, busio, adafruit_gps, adafruit_lsm9ds1, hcsr04_lib
 from adafruit_motor import servo
 import math as m
+
+# tweak parameters
+refreshRate = 0.1
+lostSignalTimer = 5.0
+sonarSensitivityFront = 50.0 # obstacle distance in cm before avoiding
+defaultMoveSpeed = 0.7
+defaultTurnSpeed = 0.5
+
+# -------- set up ultrasonic sensor -----------
+trig1 = board.D
+echo1 = board.D60
+sonar_front = hcsr04_lib.HCSR04(trig1, echo1)
+
 
 # -------- set up servos -----------
 # create a PWMOut object on the control pin.
@@ -104,7 +110,7 @@ def main():
 
 
 def moveToCoord(lat2, lon2):
-    refreshRate = 0.1
+    # refreshRate = 0.1
     print("moving to " + str(lat2) + ", " + str(lon2))
     startTime = time.monotonic()
 
@@ -123,7 +129,6 @@ def moveToCoord(lat2, lon2):
                 # # Try again if we don't have a fix yet.
                 # print('Waiting for fix...' + str(current - startTime))
                 # continue
-
 
             if gps.has_fix:
                 last_signal = time.monotonic()
@@ -160,10 +165,16 @@ def moveToCoord(lat2, lon2):
                 dist = coordDist(lat1, lon1, lat2, lon2)
 
             else:
-                move(1.0)
-                if time.monotonic() - last_signal > 5.0:
-                    # if lost signal, stop after 5 sec timer
-                    stop()
+                move(defaultMoveSpeed)
+                # lostSignalTimer = 5.0
+                # if time.monotonic() - last_signal > lostSignalTimer:
+                #     # if lost signal, stop after 5 sec timer
+                #     stop()
+
+        # check for obstacles
+        if sonar_front.dist_cm() < sonarSensitivityFront:
+            stop()
+            # turn(defaultTurnSpeed)
 
     stop()
 
@@ -206,4 +217,8 @@ def bearing(lat1, lon1, lat2, lon2):
         - m.sin(phi1) * m.cos(phi2) \
         * m.cos(phi2 - phi1)
     return m.degrees(m.atan2(y, x))
+
+def deinit():
+    sonar.deinit()
+deinit()
 main()
