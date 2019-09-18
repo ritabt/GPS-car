@@ -1,0 +1,88 @@
+# Continuous Servo Test Program for CircuitPython
+import time
+import board
+import pulseio
+from adafruit_motor import servo
+
+##DC motor
+motor_pin = board.D42
+pwm = pulseio.PWMOut(motor_pin, frequency=50)
+motor = servo.ContinuousServo(pwm)
+
+##steering servo
+servo_pin = board.D43
+pwm = pulseio.PWMOut(servo_pin, duty_cycle=0, frequency=50)
+servo = servo.Servo(pwm, min_pulse=500, max_pulse=2500)
+
+##motor commands
+def forward():
+    print("forward")
+    motor.throttle = 0.03
+    return 
+
+def stop():
+    print("stop")
+    motor.throttle = 0.0
+    return 
+
+##servo/directional commands
+def right():
+    print("right")
+    servo.angle = 135
+    return 
+
+def left(): 
+    print("left")
+    servo.angle = 45
+    return 
+    
+def straight():
+    print("straight")
+    servo.angle = 90
+    return 
+
+def steering_test():
+    while True:
+        right()
+        time.sleep(2)
+        left()
+        time.sleep(2)
+        straight()
+        time.sleep(2)
+        left()
+        time.sleep(2)
+        right()
+        time.sleep(2)
+        straight()
+        time.sleep(2)
+    return 
+
+def motor_test():
+    while True:
+        forward()
+        time.sleep(1)
+        stop()
+        time.sleep(2)
+    return 
+
+def test_run():
+    right()
+    forward()
+    time.sleep(1)
+    stop()
+    time.sleep(1)
+    forward()
+    time.sleep(1)
+    straight()
+    time.sleep(1)
+    left()
+    time.sleep(1)
+    right()
+    time.sleep(1)
+    stop()
+    
+    
+test_run()
+
+
+
